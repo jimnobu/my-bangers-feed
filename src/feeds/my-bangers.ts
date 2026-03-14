@@ -16,6 +16,7 @@ const cache = new Map<string, {
 }>()
 
 const CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export async function handler (opts: {
   agent: AtpAgent
@@ -52,7 +53,8 @@ export async function handler (opts: {
       // Retry once on network errors (cold start timeouts)
       if (retries < 2) {
         retries++
-        console.log(`Retry ${retries} after fetch error`)
+        console.log(`Retry ${retries} after fetch error, waiting 30s`)
+        await sleep(30000)
         continue
       }
       console.error('Failed to fetch author feed after retries:', (err as Error).message)
