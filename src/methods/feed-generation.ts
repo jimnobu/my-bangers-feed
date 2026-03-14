@@ -7,6 +7,7 @@ import { AtUri } from '@atproto/syntax'
 
 export default function (server: Server, ctx: AppContext) {
   server.app.bsky.feed.getFeedSkeleton(async ({ params, req }) => {
+    console.log('getFeedSkeleton called for:', params.feed)
     const feedUri = new AtUri(params.feed)
     const algo = algos[feedUri.rkey]
     if (
@@ -14,17 +15,25 @@ export default function (server: Server, ctx: AppContext) {
       feedUri.collection !== 'app.bsky.feed.generator' ||
       !algo
     ) {
+      console.log('Unsupported algo. hostname:', feedUri.hostname, 'expected:', ctx.cfg.publisherDid, 'rkey:', feedUri.rkey)
       throw new InvalidRequestError(
         'Unsupported algorithm',
         'UnsupportedAlgorithm',
       )
     }
 
-    const requesterDid = await validateAuth(
-      req,
-      ctx.cfg.serviceDid,
-      ctx.didResolver,
-    )
+    let requesterDid: string | undefined
+    try {
+      requesterDid = await validateAuth(
+        req,
+        ctx.cfg.serviceDid,
+        ctx.didResolver,
+      )
+      console.log('Auth succeeded, requesterDid:', requesterDid)
+    } catch (err) {
+      console.error('Auth failed:', err)
+      throw err
+    }
 
     const body = await algo(ctx, params, requesterDid)
     return {
