@@ -9,6 +9,14 @@ type FeedItem = {
   post: string
 }
 
+// In-memory cache: DID -> { items, fetchedAt }
+const cache = new Map<string, {
+  items: Array<{ uri: string; score: number }>
+  fetchedAt: number
+}>()
+
+const CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
+
 export async function handler (opts: {
   agent: AtpAgent
   did: string      // viewer DID
@@ -16,6 +24,15 @@ export async function handler (opts: {
   cursor?: string
 }): Promise<{ cursor?: string; feed: FeedItem[] }> {
   const { agent, did, limit } = opts
+
+  // Check cache first
+  const cached = cache.get(did)
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    console.log(`Cache hit for ${did}: ${cached.items.length} posts`)
+    const selected = cached.items.slice(0, limit)
+    const feed: FeedItem[] = selected.map(({ uri }) => ({ post: uri }))
+    return { feed, cursor: undefined }
+  }
 
   // Fetch all of the viewer's posts by paginating until exhausted
   const allItems: Array<{ uri: string; score: number }> = []
@@ -62,10 +79,16 @@ export async function handler (opts: {
 
   console.log(`Fetched ${allItems.length} posts with engagement for ${did}`)
 
-  // Sort by score descending and take top N
+  // Sort by score descending
   allItems.sort((a, b) => b.score - a.score)
-  const selected = allItems.slice(0, limit)
 
+  // Cache the sorted results (only if we got data)
+  if (allItems.length > 0) {
+    cache.set(did, { items: allItems, fetchedAt: Date.now() })
+    console.log(`Cached ${allItems.length} posts for ${did}`)
+  }
+
+  const selected = allItems.slice(0, limit)
   const feed: FeedItem[] = selected.map(({ uri }) => ({ post: uri }))
   return { feed, cursor: undefined }
 }
