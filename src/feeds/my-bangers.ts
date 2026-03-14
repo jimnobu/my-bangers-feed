@@ -25,7 +25,7 @@ export async function handler (opts: {
 }): Promise<{ cursor?: string; feed: FeedItem[] }> {
   const { agent, did, limit } = opts
 
-  // Check cache first
+  // Check cache — return immediately if fresh
   const cached = cache.get(did)
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
     console.log(`Cache hit for ${did}: ${cached.items.length} posts`)
@@ -75,13 +75,22 @@ export async function handler (opts: {
   // Sort by score descending
   allItems.sort((a, b) => b.score - a.score)
 
-  // Cache the sorted results (only if we got data)
   if (allItems.length > 0) {
+    // Fresh data — update cache
     cache.set(did, { items: allItems, fetchedAt: Date.now() })
     console.log(`Cached ${allItems.length} posts for ${did}`)
+    const selected = allItems.slice(0, limit)
+    const feed: FeedItem[] = selected.map(({ uri }) => ({ post: uri }))
+    return { feed, cursor: undefined }
   }
 
-  const selected = allItems.slice(0, limit)
-  const feed: FeedItem[] = selected.map(({ uri }) => ({ post: uri }))
-  return { feed, cursor: undefined }
+  // Fetch failed or returned nothing — serve stale cache rather than empty feed
+  if (cached) {
+    console.log(`Serving stale cache for ${did}: ${cached.items.length} posts`)
+    const selected = cached.items.slice(0, limit)
+    const feed: FeedItem[] = selected.map(({ uri }) => ({ post: uri }))
+    return { feed, cursor: undefined }
+  }
+
+  return { feed: [], cursor: undefined }
 }
