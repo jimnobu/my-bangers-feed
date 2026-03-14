@@ -20,14 +20,27 @@ export async function handler (opts: {
   // Fetch all of the viewer's posts by paginating until exhausted
   const allItems: Array<{ uri: string; score: number }> = []
   let fetchCursor: string | undefined
+  let retries = 0
 
   while (true) {
-    const res = await agent.app.bsky.feed.getAuthorFeed({
-      actor: did,
-      cursor: fetchCursor,
-      limit: 100,
-      filter: 'posts_no_replies',
-    })
+    let res
+    try {
+      res = await agent.app.bsky.feed.getAuthorFeed({
+        actor: did,
+        cursor: fetchCursor,
+        limit: 100,
+        filter: 'posts_no_replies',
+      })
+    } catch (err) {
+      // Retry once on network errors (cold start timeouts)
+      if (retries < 2) {
+        retries++
+        console.log(`Retry ${retries} after fetch error`)
+        continue
+      }
+      console.error('Failed to fetch author feed after retries:', (err as Error).message)
+      break
+    }
 
     for (const item of res.data.feed) {
       // Skip reposts of other people's posts

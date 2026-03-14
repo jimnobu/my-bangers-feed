@@ -30,8 +30,9 @@ const algos: Record<string, AlgoHandler> = {
       console.log('My Bangers returning', result.feed.length, 'posts')
       return result
     } catch (err) {
-      console.error('My Bangers error:', err)
-      throw err
+      console.error('My Bangers error:', (err as Error).message)
+      // Return empty feed instead of crashing with invalid status code
+      return { feed: [] }
     }
   },
 }
