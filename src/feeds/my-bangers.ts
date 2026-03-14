@@ -3,7 +3,7 @@ import { AtpAgent } from '@atproto/api'
 export const rkey = process.env.MY_BANGERS_RKEY || 'my-bangers'
 export const displayName = 'My Bangers'
 export const description =
-  'Your reposts, ranked by popularity (reposts + likes).'
+  'Your most popular posts, ranked by engagement.'
 
 type FeedItem = {
   post: string
@@ -11,52 +11,47 @@ type FeedItem = {
 
 export async function handler (opts: {
   agent: AtpAgent
-  did: string      // viewer DID as a plain string
+  did: string      // viewer DID
   limit: number
   cursor?: string
 }): Promise<{ cursor?: string; feed: FeedItem[] }> {
-  const { agent, did, limit, cursor } = opts
+  const { agent, did, limit } = opts
 
-  // 1) Fetch the viewer's own feed including reposts
-  const res = await agent.app.bsky.feed.getAuthorFeed({
-    actor: did,
-    cursor,
-    limit: 100,
-    filter: 'posts_with_replies',
-  })
+  // Fetch the viewer's own posts (multiple pages to get a good pool)
+  const allItems: Array<{ uri: string; score: number }> = []
+  let fetchCursor: string | undefined
+  const pagesToFetch = 3
 
-  // 2) Keep only items that are reposts
-  const repostItems = res.data.feed.filter(
-    (item) =>
-      item.reason &&
-      item.reason.$type === 'app.bsky.feed.defs#reasonRepost'
-  )
+  for (let i = 0; i < pagesToFetch; i++) {
+    const res = await agent.app.bsky.feed.getAuthorFeed({
+      actor: did,
+      cursor: fetchCursor,
+      limit: 100,
+      filter: 'posts_no_replies',
+    })
 
-  if (repostItems.length === 0) {
-    return { feed: [], cursor: undefined }
+    for (const item of res.data.feed) {
+      // Skip reposts of other people's posts
+      if (item.reason) continue
+
+      const reposts = item.post.repostCount ?? 0
+      const likes = item.post.likeCount ?? 0
+      const score = reposts * 3 + likes
+
+      // Only include posts with some engagement
+      if (score > 0) {
+        allItems.push({ uri: item.post.uri, score })
+      }
+    }
+
+    fetchCursor = res.data.cursor
+    if (!fetchCursor) break
   }
 
-  // 3) Get URIs of the original posts
-  const uris = repostItems.map((item) => item.post.uri)
+  // Sort by score descending and take top N
+  allItems.sort((a, b) => b.score - a.score)
+  const selected = allItems.slice(0, limit)
 
-  // 4) Fetch those posts and score them by engagement
-  const postsRes = await agent.app.bsky.feed.getPosts({ uris })
-
-  const scored = postsRes.data.posts.map((post) => {
-    const reposts = post.repostCount ?? 0
-    const likes = post.likeCount ?? 0
-    const score = reposts * 3 + likes
-    return { post, score }
-  })
-
-  // 5) Sort by score descending and take top N
-  scored.sort((a, b) => b.score - a.score)
-  const selected = scored.slice(0, limit)
-
-  // 6) Return in skeleton format
-  const feed: FeedItem[] = selected.map(({ post }) => ({
-    post: post.uri,
-  }))
-
+  const feed: FeedItem[] = selected.map(({ uri }) => ({ post: uri }))
   return { feed, cursor: undefined }
 }
