@@ -46,7 +46,7 @@ export async function handler (opts: {
         actor: did,
         cursor: fetchCursor,
         limit: 100,
-        filter: 'posts_no_replies',
+        filter: 'posts_with_replies',
       })
     } catch (err) {
       // Retry once on network errors (cold start timeouts)
