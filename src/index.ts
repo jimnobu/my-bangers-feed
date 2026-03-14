@@ -27,18 +27,26 @@ const run = async () => {
     `🤖 running feed generator at http://${server.cfg.listenhost}:${server.cfg.port}`,
   )
 
-  // Pre-warm cache for publisher DID 30s after startup (gives network time to stabilize)
+  // Pre-warm cache for publisher DID — retries every 2 min until it succeeds
   const publisherDid = maybeStr(process.env.FEEDGEN_PUBLISHER_DID) ?? 'did:example:alice'
-  setTimeout(async () => {
-    console.log('Background cache warmup starting for:', publisherDid)
+  const warmup = async () => {
     const agent = new AtpAgent({ service: 'https://public.api.bsky.app' })
-    try {
-      const result = await myBangersHandler({ agent, did: publisherDid, limit: 30 })
-      console.log('Background cache warmup complete:', result.feed.length, 'posts cached')
-    } catch (err) {
-      console.log('Background cache warmup failed (non-fatal):', (err as Error).message)
+    while (true) {
+      try {
+        console.log('Background cache warmup attempt for:', publisherDid)
+        const result = await myBangersHandler({ agent, did: publisherDid, limit: 30 })
+        if (result.feed.length > 0) {
+          console.log('Background cache warmup complete:', result.feed.length, 'posts cached')
+          break
+        }
+        console.log('Warmup returned 0 posts, retrying in 2 min')
+      } catch (err) {
+        console.log('Warmup fetch error, retrying in 2 min:', (err as Error).message)
+      }
+      await new Promise(resolve => setTimeout(resolve, 2 * 60 * 1000))
     }
-  }, 30 * 1000)
+  }
+  setTimeout(warmup, 30 * 1000)
 }
 
 const maybeStr = (val?: string) => {
