@@ -17,12 +17,11 @@ export async function handler (opts: {
 }): Promise<{ cursor?: string; feed: FeedItem[] }> {
   const { agent, did, limit } = opts
 
-  // Fetch the viewer's own posts (multiple pages to get a good pool)
+  // Fetch all of the viewer's posts by paginating until exhausted
   const allItems: Array<{ uri: string; score: number }> = []
   let fetchCursor: string | undefined
-  const pagesToFetch = 3
 
-  for (let i = 0; i < pagesToFetch; i++) {
+  while (true) {
     const res = await agent.app.bsky.feed.getAuthorFeed({
       actor: did,
       cursor: fetchCursor,
@@ -45,8 +44,10 @@ export async function handler (opts: {
     }
 
     fetchCursor = res.data.cursor
-    if (!fetchCursor) break
+    if (!fetchCursor || res.data.feed.length === 0) break
   }
+
+  console.log(`Fetched ${allItems.length} posts with engagement for ${did}`)
 
   // Sort by score descending and take top N
   allItems.sort((a, b) => b.score - a.score)
