@@ -20,13 +20,21 @@ const algos: Record<string, AlgoHandler> = {
     if (!requesterDid) {
       throw new AuthRequiredError()
     }
-    const agent = new AtpAgent({ service: 'https://bsky.social' })
-    return myBangers.handler({
-      agent,
-      did: requesterDid,
-      limit: params.limit,
-      cursor: params.cursor,
-    })
+    console.log('My Bangers requested by:', requesterDid)
+    try {
+      const agent = new AtpAgent({ service: 'https://public.api.bsky.app' })
+      const result = await myBangers.handler({
+        agent,
+        did: requesterDid,
+        limit: params.limit,
+        cursor: params.cursor,
+      })
+      console.log('My Bangers returning', result.feed.length, 'posts')
+      return result
+    } catch (err) {
+      console.error('My Bangers error:', err)
+      throw err
+    }
   },
 }
 
