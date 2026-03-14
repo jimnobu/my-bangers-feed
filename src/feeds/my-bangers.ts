@@ -6,8 +6,7 @@ export const description =
   'Your reposts, ranked by popularity (reposts + likes).'
 
 type FeedItem = {
-  uri: string
-  cid: string
+  post: string
 }
 
 export async function handler (opts: {
@@ -56,8 +55,7 @@ export async function handler (opts: {
 
   // 6) Return in skeleton format
   const feed: FeedItem[] = selected.map(({ post }) => ({
-    uri: post.uri,
-    cid: post.cid,
+    post: post.uri,
   }))
 
   return { feed, cursor: undefined }
