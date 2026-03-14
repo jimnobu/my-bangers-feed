@@ -31,8 +31,7 @@ export default function (server: Server, ctx: AppContext) {
       )
       console.log('Auth succeeded, requesterDid:', requesterDid)
     } catch (err) {
-      console.error('Auth failed:', err)
-      throw err
+      console.log('Auth failed (non-fatal), proceeding without requesterDid:', (err as Error).message)
     }
 
     const body = await algo(ctx, params, requesterDid)

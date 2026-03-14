@@ -16,16 +16,14 @@ type AlgoHandler = (
 
 const algos: Record<string, AlgoHandler> = {
   [whatsAlf.shortname]: whatsAlf.handler,
-  [myBangers.rkey]: async (_ctx, params, requesterDid) => {
-    if (!requesterDid) {
-      throw new AuthRequiredError()
-    }
-    console.log('My Bangers requested by:', requesterDid)
+  [myBangers.rkey]: async (ctx, params, requesterDid) => {
+    const did = requesterDid || ctx.cfg.publisherDid
+    console.log('My Bangers requested by:', did, requesterDid ? '(authenticated)' : '(fallback to publisher)')
     try {
       const agent = new AtpAgent({ service: 'https://public.api.bsky.app' })
       const result = await myBangers.handler({
         agent,
-        did: requesterDid,
+        did,
         limit: params.limit,
         cursor: params.cursor,
       })
